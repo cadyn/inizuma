@@ -74,7 +74,7 @@ async fn main() -> Result<(), Error> {
     token_file.set_file_name("TOKEN");
     let token = std::fs::read_to_string(token_file)?;
 
-    let intents = serenity::GatewayIntents::non_privileged();
+    let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
     let mut handler = Handler {
         options: poise::FrameworkOptions {
             commands: vec![ping()],
