@@ -5,10 +5,12 @@
 //! that to work, please adjust the bot ID below to your bot, for the mention parsing to work.
 
 use poise::serenity_prelude::{self as serenity};
+use regex::Regex;
+use mime::Mime;
 
 type Error = serenity::Error;
 
-#[poise::command(prefix_command)]
+#[poise::command(prefix_command, slash_command)]
 async fn ping(ctx: poise::Context<'_, (), Error>) -> Result<(), Error> {
     ctx.say("Pong!").await?;
     Ok(())
@@ -34,6 +36,26 @@ impl serenity::EventHandler for Handler {
         poise::dispatch_event(framework_data, &ctx, event).await;
         if (new_message.attachments.len() > 0) || (new_message.embeds.len() > 0) {
             new_message.react(&ctx, serenity::ReactionType::Unicode("\u{2b50}".to_string())).await.unwrap();
+        } else {
+            let regex = Regex::new(r#"(http|https):\/\/([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:\/~+#-]*[\w@?^=%&\/~+#-]?)"#).unwrap();
+            for (regex_match, [_protocol, _domain, _path]) in regex.captures_iter(&new_message.content).map(|c| c.extract()) {
+                match reqwest::get(regex_match).await {
+                    Ok(request) => {
+                        if let Some(content_type) = request.headers().get(reqwest::header::CONTENT_TYPE) {
+                            let mime: Mime = content_type.to_str().unwrap().parse().unwrap();
+                            match mime.type_() {
+                                mime::IMAGE => (),
+                                mime::VIDEO => (),
+                                mime::AUDIO => (),
+                                _ => continue,
+                            }
+                            new_message.react(&ctx, serenity::ReactionType::Unicode("\u{2b50}".to_string())).await.unwrap();
+                            break;
+                        }
+                    },
+                    Err(e) => println!("Reqwest get returned err: {}", e),
+                }
+            }
         }
     }
 
@@ -63,7 +85,9 @@ impl serenity::EventHandler for Handler {
         poise::dispatch_event(framework_data, &ctx, event).await;
     }
 
-    // For slash commands or edit tracking to work, forward interaction_create and message_update
+    async fn ready(&self, _: serenity::Context, ready: serenity::Ready) {
+        println!("{} is connected!", ready.user.name);
+    }
 }
 
 #[tokio::main]
@@ -74,7 +98,6 @@ async fn main() -> Result<(), Error> {
     token_file.set_file_name("TOKEN");
     let mut token = std::fs::read_to_string(token_file)?;
     token.retain(|c| !c.is_whitespace());
-    println!("token: {}", token);
 
     let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
     let mut handler = Handler {
