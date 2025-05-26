@@ -72,7 +72,8 @@ async fn main() -> Result<(), Error> {
     //let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
     let mut token_file = std::env::current_exe()?;
     token_file.set_file_name("TOKEN");
-    let token = std::fs::read_to_string(token_file)?;
+    let mut token = std::fs::read_to_string(token_file)?;
+    token.retain(|c| !c.is_whitespace());
 
     let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
     let mut handler = Handler {
@@ -85,7 +86,7 @@ async fn main() -> Result<(), Error> {
     poise::set_qualified_names(&mut handler.options.commands); // some setup
 
     let handler = std::sync::Arc::new(handler);
-    let mut client = serenity::Client::builder(token.trim(), intents)
+    let mut client = serenity::Client::builder(token, intents)
         .event_handler_arc(handler.clone())
         .await?;
 
